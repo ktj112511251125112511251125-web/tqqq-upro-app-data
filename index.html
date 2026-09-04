@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TQQQ / UPRO 전략 대시보드</title>
+<style>
+:root{--bg:#0b1020;--panel:#131a2d;--soft:#202944;--text:#eef3ff;--muted:#9eabc5;--ok:#55d6a9;--warn:#ffcb6b;--bad:#ff7b8b;--accent:#7aa2ff}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#080d1a,#10162a);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans KR","Apple SD Gothic Neo",sans-serif;line-height:1.5}.wrap{max-width:1100px;margin:auto;padding:18px}.top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin:8px 0 18px}.title{font-size:clamp(24px,5vw,38px);font-weight:800}.sub{color:var(--muted);font-size:14px}.pill{padding:7px 10px;border-radius:999px;background:var(--soft);font-size:12px;white-space:nowrap}.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}.card{grid-column:span 4;background:rgba(19,26,45,.94);border:1px solid #26314f;border-radius:16px;padding:16px;box-shadow:0 10px 30px #0004}.wide{grid-column:span 8}.full{grid-column:1/-1}.half{grid-column:span 6}.k{color:var(--muted);font-size:12px}.v{font-size:25px;font-weight:800;margin-top:3px}.row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #222d49}.row:last-child{border-bottom:0}.good{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.accent{color:var(--accent)}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:right;padding:9px 7px;border-bottom:1px solid #26314f}th:first-child,td:first-child{text-align:left}th{color:var(--muted);font-weight:600}.orders .BUY{color:var(--ok)}.orders .SELL{color:var(--bad)}.note{font-size:12px;color:var(--muted)}.bar{height:12px;background:#222b45;border-radius:10px;overflow:hidden;margin:8px 0}.bar>span{display:block;height:100%;background:linear-gradient(90deg,#6e9cff,#9d7cff)}svg{width:100%;height:90px}.error{padding:20px;background:#3a1d28;border-radius:12px;color:#ffd4da}@media(max-width:800px){.card,.wide,.half{grid-column:1/-1}.top{display:block}.pill{display:inline-block;margin-top:8px}.wrap{padding:12px}.v{font-size:22px}table{font-size:12px}.scroll{overflow:auto}}
+</style>
+</head>
+<body><main class="wrap">
+<div class="top"><div><div class="title">TQQQ / UPRO 듀얼 주간 전략</div><div id="subtitle" class="sub">데이터 불러오는 중...</div></div><div id="fresh" class="pill">대기</div></div>
+<div id="root" class="grid"></div>
+</main>
+<script>
+const $=s=>document.querySelector(s), pct=(x,d=1)=>x==null?'-':(x*100).toFixed(d)+'%', money=x=>x==null?'-':'$'+Number(x).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+function cls(x){return x>0?'good':x<0?'bad':''}
+function spark(hist){if(!hist||hist.length<2)return '';let a=hist.map(x=>+x[1]),mn=Math.min(...a),mx=Math.max(...a),w=600,h=90,p=a.map((v,i)=>[(i/(a.length-1))*w,h-((v-mn)/(mx-mn||1))*h]).map(x=>x.join(',')).join(' ');return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${p}" fill="none" stroke="currentColor" stroke-width="3"/></svg>`}
+function render(d){
+ if(!d.strategy){$('#root').innerHTML=`<div class="full error">${d.status?.message_ko||'첫 실행을 기다리는 중입니다.'}</div>`;return}
+ $('#subtitle').textContent=`${d.strategy.name} · 신호 ${d.strategy.data_date} → T+1 ${d.strategy.execution_date}`;
+ $('#fresh').textContent=d.freshness?.status==='CURRENT'?'최신 완료 거래일':'최근 완료 거래일';
+ const a=d.allocation||{}, acc=d.account||{}, ti=d.inner?.t_ret||{}, ui=d.inner?.u_bal||{}, c=d.contribution||{};
+ const driftClass=a.drift30_triggered?'bad':'good';
+ let pos=''; if(acc.positions) for(const [t,x] of Object.entries(acc.positions)){if(+x.shares<=0)continue;pos+=`<tr><td>${t}</td><td>${(+x.shares).toFixed(6)}</td><td>${money(x.avg_cost)}</td><td>${money(x.price)}</td><td>${money(x.market_value)}</td><td class="${cls(x.unrealized_pnl_pct)}">${pct(x.unrealized_pnl_pct,2)}</td></tr>`}
+ if(!pos)pos='<tr><td colspan="6">입력된 보유주식 없음</td></tr>';
+ let orders=''; for(const x of d.orders||[])orders+=`<tr><td class="${x.side}">${x.side==='BUY'?'매수':'매도'}</td><td>${x.ticker}</td><td>${(+x.shares).toFixed(6)}</td><td>${money(x.estimated_notional)}</td><td style="text-align:left">${x.reason}</td></tr>`; if(!orders)orders='<tr><td colspan="5">오늘 전략상 주문 없음</td></tr>';
+ $('#root').innerHTML=`
+ <section class="card"><div class="k">T sleeve 목표</div><div class="v accent">${pct(a.t_sleeve_target,0)}</div><div class="bar"><span style="width:${(a.t_sleeve_target||0)*100}%"></span></div><div class="k">U sleeve ${pct(a.u_sleeve_target,0)}</div></section>
+ <section class="card"><div class="k">현재 T sleeve</div><div class="v">${pct(a.current_t_sleeve)}</div><div class="k">목표 대비 Drift</div><div class="v ${driftClass}" style="font-size:20px">${a.signed_drift==null?'-':(a.signed_drift*100).toFixed(1)+'%p'}</div></section>
+ <section class="card"><div class="k">Drift30</div><div class="v ${driftClass}">${a.drift30_triggered?'발동':'미발동'}</div><div class="k">주 첫 거래일 검토: ${a.weekly_first_review_session?'예':'아니오'}</div></section>
+ <section class="card wide"><h3>🧭 외부 배분 판단</h3><div class="row"><span>84D QQQ</span><b>${pct(a.qqq_84d,2)}</b></div><div class="row"><span>84D VOO</span><b>${pct(a.voo_84d,2)}</b></div><div class="row"><span>상대모멘텀</span><b class="${cls(a.relative_momentum)}">${pct(a.relative_momentum,2)}p</b></div><div class="row"><span>Trend score</span><b>QQQ ${a.q_trend_score}/4 · VOO ${a.v_trend_score}/4</b></div><p>${a.reason_ko||''}</p><p class="note">Safety: ${a.safety_reason_ko||'없음'}</p></section>
+ <section class="card"><div class="k">현재 전략자산</div><div class="v">${money(acc.current_equity)}</div><div class="k">평가손익</div><div class="v ${cls(acc.current_unrealized_pnl_pct)}" style="font-size:20px">${pct(acc.current_unrealized_pnl_pct,2)}</div></section>
+ <section class="card half"><h3>⚙️ T_RET</h3><div class="row"><span>Active</span><b>${ti.active?'ON':'OFF'}</b></div><div class="row"><span>Risk-off</span><b>${ti.riskoff||'-'}</b></div><div class="row"><span>Cooldown</span><b>${ti.cooldown??'-'}</b></div><div class="row"><span>이벤트</span><b>${ti.event||'없음'}</b></div><div class="note">QQQ ${pct(ti.weights?.QQQ,0)} · QLD ${pct(ti.weights?.QLD,0)} · TQQQ ${pct(ti.weights?.TQQQ,0)} · CASH ${pct(ti.weights?.CASH,0)}</div></section>
+ <section class="card half"><h3>⚙️ U_BAL</h3><div class="row"><span>Active</span><b>${ui.active?'ON':'OFF'}</b></div><div class="row"><span>Risk-off</span><b>${ui.riskoff||'-'}</b></div><div class="row"><span>Cooldown</span><b>${ui.cooldown??'-'}</b></div><div class="row"><span>이벤트</span><b>${ui.event||'없음'}</b></div><div class="note">VOO ${pct(ui.weights?.VOO,0)} · SSO ${pct(ui.weights?.SSO,0)} · UPRO ${pct(ui.weights?.UPRO,0)} · CASH ${pct(ui.weights?.CASH,0)}</div></section>
+ <section class="card full"><h3>💰 계좌 / 신규자금</h3><div class="row"><span>T sleeve cash</span><b>${money(acc.t_sleeve_cash)}</b></div><div class="row"><span>U sleeve cash</span><b>${money(acc.u_sleeve_cash)}</b></div><div class="row"><span>오늘 신규 적립금</span><b>${money(c.total)} → T ${money(c.to_t_sleeve)} / U ${money(c.to_u_sleeve)}</b></div><div class="scroll"><table><thead><tr><th>종목</th><th>수량</th><th>평단</th><th>현재가</th><th>평가금액</th><th>수익률</th></tr></thead><tbody>${pos}</tbody></table></div></section>
+ <section class="card full orders"><h3>🛒 T+1 예상 순주문</h3><div class="scroll"><table><thead><tr><th>매매</th><th>종목</th><th>수량</th><th>예상금액</th><th>이유</th></tr></thead><tbody>${orders}</tbody></table></div><p class="note">최신 조정종가 기준 예상치입니다. 실제 체결 후 GitHub Secrets 계좌값을 갱신하세요.</p></section>
+ <section class="card half accent"><h3>QQQ 최근 흐름</h3>${spark(d.history?.QQQ)}</section><section class="card half accent"><h3>VOO 최근 흐름</h3>${spark(d.history?.VOO)}</section>
+ <section class="card full"><h3>🔒 고정 전략</h3><p>Outer 84D / 7% / base60 / tilt25 / 10~90 / Safety ON · 신규자금 DRIFT_FIRST · 기존자산 WEEKLY_FIRST + strict Drift30 · full transfer · T+1</p><p class="note">BUY STOP / contribution queue / catch-up 없음. T_RET/U_BAL inner는 매 거래일 평가합니다.</p><p class="note">${d.privacy_warning_ko||''}</p></section>`;
+}
+fetch('latest.json?ts='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(render).catch(e=>{$('#root').innerHTML=`<div class="full error">latest.json 로드 실패: ${e}</div>`});
+</script></body></html>

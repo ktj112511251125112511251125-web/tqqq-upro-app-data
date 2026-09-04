@@ -1,0 +1,7 @@
+{
+  "schema_version": 3,
+  "status": {
+    "code": "WAITING_FIRST_RUN",
+    "message_ko": "Private live 저장소의 첫 GitHub Actions 실행을 기다리고 있습니다."
+  }
+}
